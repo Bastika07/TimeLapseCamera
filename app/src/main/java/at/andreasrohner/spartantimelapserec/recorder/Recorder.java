@@ -262,8 +262,10 @@ public abstract class Recorder {
 
 	protected Uri createOutputUri(String mimeType, String ext) throws IOException {
 		String date = (String) DateFormat.format("yyyy-MM-dd", System.currentTimeMillis());
-		String relativePath = Environment.DIRECTORY_PICTURES + "/"
-				+ mSettings.getProjectName() + "/" + date;
+		String baseDir = mimeType.startsWith("video/")
+				? Environment.DIRECTORY_MOVIES
+				: Environment.DIRECTORY_PICTURES;
+		String relativePath = baseDir + "/" + mSettings.getProjectName() + "/" + date;
 		String filename = mSettings.getProjectName() + mFileIndex + "." + ext;
 		mFileIndex++;
 
