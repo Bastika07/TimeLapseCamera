@@ -122,14 +122,16 @@ public class ForegroundService extends Service implements Handler.Callback {
     }
 
 
-    private void stop() {
+    private synchronized void stop() {
+
+        Recorder r = recorder;
+        recorder = null;
 
         File projectDir = null;
 
-        if (recorder != null) {
-            recorder.stop();
-            projectDir = recorder.getOutputDir();
-            recorder = null;
+        if (r != null) {
+            r.stop();
+            projectDir = r.getOutputDir();
         }
 
         if (mWakeLock != null && mWakeLock.isHeld())
