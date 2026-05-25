@@ -30,7 +30,10 @@ import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
 import android.media.MediaRecorder.OnErrorListener;
 import android.media.MediaRecorder.OnInfoListener;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
+import android.os.ParcelFileDescriptor;
 import android.util.Log;
 import at.andreasrohner.spartantimelapserec.data.RecSettings;
 
@@ -38,6 +41,7 @@ public class VideoRecorder extends Recorder implements OnInfoListener,
 		OnErrorListener {
 	protected MediaRecorder mMediaRecorder;
 	protected int mRate;
+	protected ParcelFileDescriptor mParcelFileDescriptor;
 
 	public VideoRecorder(RecSettings settings,
 			Context context, Handler handler) {
@@ -78,6 +82,10 @@ public class VideoRecorder extends Recorder implements OnInfoListener,
 			e.printStackTrace();
 		}
 		mMediaRecorder = null;
+		if (mParcelFileDescriptor != null) {
+			try { mParcelFileDescriptor.close(); } catch (IOException ignored) {}
+			mParcelFileDescriptor = null;
+		}
 	}
 
 	@Override
@@ -164,7 +172,13 @@ public class VideoRecorder extends Recorder implements OnInfoListener,
 
 		if (mRate != -1)
 			mMediaRecorder.setVideoFrameRate(mRate);
-		mMediaRecorder.setOutputFile(getOutputFile("mp4").getAbsolutePath());
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+			Uri videoUri = createOutputUri("video/mp4", "mp4");
+			mParcelFileDescriptor = mContext.getContentResolver().openFileDescriptor(videoUri, "rw");
+			mMediaRecorder.setOutputFile(mParcelFileDescriptor.getFileDescriptor());
+		} else {
+			mMediaRecorder.setOutputFile(getOutputFile("mp4").getAbsolutePath());
+		}
 		mMediaRecorder.setVideoSize(mSettings.getFrameWidth(), mSettings.getFrameHeight());
 
 		if (mSettings.getStopRecAfter() > 0) {

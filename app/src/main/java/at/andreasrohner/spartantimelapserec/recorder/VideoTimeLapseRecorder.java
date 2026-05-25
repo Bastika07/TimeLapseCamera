@@ -23,6 +23,8 @@ import java.io.IOException;
 import android.content.Context;
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.util.Log;
 import android.widget.Toast;
@@ -54,7 +56,13 @@ public class VideoTimeLapseRecorder extends VideoRecorder {
 
 		if (mRate != -1)
 			mMediaRecorder.setVideoFrameRate(mRate);
-		mMediaRecorder.setOutputFile(getOutputFile("mp4").getAbsolutePath());
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+			Uri videoUri = createOutputUri("video/mp4", "mp4");
+			mParcelFileDescriptor = mContext.getContentResolver().openFileDescriptor(videoUri, "rw");
+			mMediaRecorder.setOutputFile(mParcelFileDescriptor.getFileDescriptor());
+		} else {
+			mMediaRecorder.setOutputFile(getOutputFile("mp4").getAbsolutePath());
+		}
 		mMediaRecorder.setVideoSize(mSettings.getFrameWidth(),
 				mSettings.getFrameHeight());
 

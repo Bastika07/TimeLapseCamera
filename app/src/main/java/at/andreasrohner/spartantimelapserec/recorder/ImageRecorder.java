@@ -21,6 +21,7 @@ package at.andreasrohner.spartantimelapserec.recorder;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -31,6 +32,8 @@ import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.hardware.Camera.AutoFocusCallback;
 import android.hardware.Camera.ErrorCallback;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -50,9 +53,14 @@ public class ImageRecorder extends Recorder implements Runnable,
 	protected boolean mWaitCamReady;
 
 	/**
-	 * Current / last recorded image
+	 * Current / last recorded image (API < 29)
 	 */
 	private static File currentRecordedImage;
+
+	/**
+	 * Current / last recorded image URI (API 29+)
+	 */
+	private static Uri currentRecordedUri;
 
 	/**
 	 * Count of recorded images within the whole app session
@@ -74,16 +82,14 @@ public class ImageRecorder extends Recorder implements Runnable,
 		autoFocusCallback=this;
 	}
 
-	/**
-	 * @return Current / last recorded image
-	 */
 	public static File getCurrentRecordedImage() {
 		return currentRecordedImage;
 	}
 
-	/**
-	 * @return Count of recorded images within the whole app session
-	 */
+	public static Uri getCurrentRecordedUri() {
+		return currentRecordedUri;
+	}
+
 	public static int getRecordedImagesCount() {
 		return recordedImagesCount;
 	}
@@ -114,11 +120,19 @@ public class ImageRecorder extends Recorder implements Runnable,
 	@Override
 	public void onPictureTaken(byte[] data, Camera camera) {
 		try {
-			File file = getOutputFile("jpg");
-			currentRecordedImage = file;
-			FileOutputStream out = new FileOutputStream(file);
-			out.write(data);
-			out.close();
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+				Uri uri = createOutputUri("image/jpeg", "jpg");
+				currentRecordedUri = uri;
+				try (OutputStream out = mContext.getContentResolver().openOutputStream(uri)) {
+					if (out != null) out.write(data);
+				}
+			} else {
+				File file = getOutputFile("jpg");
+				currentRecordedImage = file;
+				try (FileOutputStream out = new FileOutputStream(file)) {
+					out.write(data);
+				}
+			}
 			mWaitCamReady = false;
 			recordedImagesCount++;
 			scheduleNextPicture();

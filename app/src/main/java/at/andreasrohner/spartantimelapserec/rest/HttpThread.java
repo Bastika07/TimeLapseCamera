@@ -4,7 +4,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.BatteryManager;
+import android.os.Build;
 import android.os.Environment;
 import android.preference.PreferenceManager;
 import android.util.Log;
@@ -108,11 +110,13 @@ public class HttpThread extends Thread implements HttpOutput, Closeable {
 			int pos = request.indexOf(' ');
 			if (pos == -1) {
 				Log.e(TAG, "Invalid Request: «" + request + "»");
+				return;
 			}
 			String method = request.substring(0, pos);
 			int pos2 = request.indexOf(' ', pos + 1);
 			if (pos2 == -1) {
 				Log.e(TAG, "Invalid Request: «" + request + "»");
+				return;
 			}
 			String url = request.substring(pos + 1, pos2);
 			String protocol = request.substring(pos2);
@@ -235,10 +239,22 @@ public class HttpThread extends Thread implements HttpOutput, Closeable {
 	 */
 	private boolean processCurrentRequest(String command) throws IOException {
 		if ("img".equals(command)) {
-			File lastImg = ImageRecorder.getCurrentRecordedImage();
-			if (lastImg != null && lastImg.isFile()) {
-				sendFileFromFilesystem(lastImg);
-				return true;
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+				Uri lastUri = ImageRecorder.getCurrentRecordedUri();
+				if (lastUri != null) {
+					sendReplyHeader(ReplyCode.FOUND, "image/jpeg");
+					try (InputStream in = restService.getApplicationContext()
+							.getContentResolver().openInputStream(lastUri)) {
+						if (in != null) copy(in, this.out);
+					}
+					return true;
+				}
+			} else {
+				File lastImg = ImageRecorder.getCurrentRecordedImage();
+				if (lastImg != null && lastImg.isFile()) {
+					sendFileFromFilesystem(lastImg);
+					return true;
+				}
 			}
 		}
 
