@@ -22,6 +22,8 @@ import java.io.File;
 import java.io.IOException;
 
 import android.content.Context;
+import android.os.Build;
+import android.os.Environment;
 import android.hardware.Camera;
 import android.hardware.Camera.CameraInfo;
 import android.os.Bundle;
@@ -31,6 +33,7 @@ import android.os.SystemClock;
 import android.os.PowerManager.WakeLock;
 import android.text.format.DateFormat;
 import android.util.Log;
+import at.andreasrohner.spartantimelapserec.StoragePermissionHelper;
 import at.andreasrohner.spartantimelapserec.data.RecSettings;
 import at.andreasrohner.spartantimelapserec.sensor.MuteShutter;
 import at.andreasrohner.spartantimelapserec.sensor.OrientationSensor;
@@ -48,28 +51,28 @@ public abstract class Recorder {
 	private int mFileIndex;
 
 	public static Recorder getInstance(RecSettings settings,
-			 Context context, Handler handler,
-			WakeLock wakeLock) {
+									   Context context, Handler handler,
+									   WakeLock wakeLock) {
 		Recorder recorder;
 
 		switch (settings.getRecMode()) {
-		case VIDEO_TIME_LAPSE:
-			recorder = new VideoTimeLapseRecorder(settings,
-					context, handler);
-			break;
-		case IMAGE_TIME_LAPSE:
-			if (settings.shouldUsePowerSaveMode()) {
-				recorder = new PowerSavingImageRecorder(settings,
-						 context, handler, wakeLock);
-			} else {
-				recorder = new ImageRecorder(settings,  context,
+			case VIDEO_TIME_LAPSE:
+				recorder = new VideoTimeLapseRecorder(settings,
+						context, handler);
+				break;
+			case IMAGE_TIME_LAPSE:
+				if (settings.shouldUsePowerSaveMode()) {
+					recorder = new PowerSavingImageRecorder(settings,
+							context, handler, wakeLock);
+				} else {
+					recorder = new ImageRecorder(settings,  context,
+							handler);
+				}
+				break;
+			default:
+				recorder = new VideoRecorder(settings,  context,
 						handler);
-			}
-			break;
-		default:
-			recorder = new VideoRecorder(settings,  context,
-					handler);
-			break;
+				break;
 		}
 
 		return recorder;
@@ -89,15 +92,41 @@ public abstract class Recorder {
 		mCanDisableShutterSound = info.canDisableShutterSound;
 
 		mMute = new MuteShutter(context);
-		mOutputDir = new File(settings.getProjectPath() + "/"
-				+ settings.getProjectName() + "/"
-				+ DateFormat.format("yyyy-MM-dd", System.currentTimeMillis())
-				+ "/");
 
-		if (!mOutputDir.exists() && !mOutputDir.mkdirs()) {
-			Log.e("TimeLapseCamera", "Failed to make directory: " + mOutputDir.toString());
-			return;
+		String dateSubdir = settings.getProjectName() + "/"
+				+ DateFormat.format("yyyy-MM-dd", System.currentTimeMillis())
+				+ "/";
+
+		// Try the user-configured shared-storage path first.
+		// On Android 11+ this requires MANAGE_EXTERNAL_STORAGE; on 6-10 it requires
+		// WRITE_EXTERNAL_STORAGE. If the permission has not been granted yet the
+		// system will silently refuse mkdirs() — we detect that here and fall back
+		// to the app-private directory (no permission needed, always works).
+		File outputDir = new File(settings.getProjectPath() + "/" + dateSubdir);
+
+		if (!outputDir.exists() && !outputDir.mkdirs()) {
+			boolean permMissing = !StoragePermissionHelper.isGranted(context);
+			if (permMissing) {
+				Log.w("TimeLapseCamera",
+						"Storage permission not granted — falling back to app-private storage. "
+								+ "Grant MANAGE_EXTERNAL_STORAGE in Settings to use the configured path.");
+			} else {
+				Log.w("TimeLapseCamera", "Could not create preferred directory: "
+						+ outputDir + " — falling back to app-private storage");
+			}
+
+			File fallback = new File(context.getExternalFilesDir(
+					Environment.DIRECTORY_PICTURES), dateSubdir);
+
+			if (!fallback.exists() && !fallback.mkdirs()) {
+				Log.e("TimeLapseCamera", "Failed to make fallback directory: " + fallback);
+				mOutputDir = null;
+				return;
+			}
+			Log.i("TimeLapseCamera", "Using fallback directory: " + fallback);
+			outputDir = fallback;
 		}
+		mOutputDir = outputDir;
 
 		mInitDelay = settings.getInitDelay();
 	}
@@ -180,8 +209,11 @@ public abstract class Recorder {
 			}
 		};
 
-		if (mHandler == null  || mContext == null)
+		if (mHandler == null || mContext == null || mOutputDir == null) {
+			if (mOutputDir == null)
+				handleError(getClass().getSimpleName(), "Output directory could not be created");
 			return;
+		}
 
 		enableOrientationSensor();
 
@@ -208,15 +240,15 @@ public abstract class Recorder {
 	}
 
 	protected File getOutputFile(String ext) throws IOException {
+		if (!mOutputDir.isDirectory())
+			throw new IOException("Could not open directory: " + mOutputDir);
+
 		File outFile;
 		do {
 			outFile = new File(mOutputDir, mSettings.getProjectName()
 					+ mFileIndex + "." + ext);
 			mFileIndex++;
 		} while (outFile.isFile());
-
-		if (!mOutputDir.isDirectory())
-			throw new IOException("Could not open directory");
 
 		return outFile;
 	}

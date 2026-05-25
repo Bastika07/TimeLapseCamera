@@ -37,6 +37,12 @@ public class CameraSettings {
 		if (cameraParams == null)
 			cameraParams = new Camera.Parameters[Camera.getNumberOfCameras()];
 
+		if (camId < 0 || camId >= cameraParams.length) {
+			android.util.Log.w("CameraSettings", "camId " + camId
+					+ " out of bounds (length=" + cameraParams.length + "), falling back to 0");
+			camId = 0;
+		}
+
 		Camera.Parameters params = cameraParams[camId];
 		if (params == null) {
 			Camera camera = Camera.open(camId);
@@ -49,12 +55,12 @@ public class CameraSettings {
 	}
 
 	private Set<String> getStringSet(SharedPreferences prefs, String key,
-			Set<String> defValues) {
+									 Set<String> defValues) {
 		return prefs.getStringSet(key, defValues);
 	}
 
 	private void putStringSet(SharedPreferences prefs, String key,
-			Set<String> set) {
+							  Set<String> set) {
 		prefs.edit().putStringSet(key, set).commit();
 		return;
 
@@ -229,7 +235,7 @@ public class CameraSettings {
 	}
 
 	public List<int[]> getFrameSizes(SharedPreferences prefs, int camId,
-			boolean timeLapse) {
+									 boolean timeLapse) {
 
 		Set<String> sizes = getStringSet(prefs, "pref_frame_size_values_"
 				+ camId, null);

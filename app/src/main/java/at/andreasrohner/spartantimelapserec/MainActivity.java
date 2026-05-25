@@ -41,6 +41,7 @@ import androidx.core.content.ContextCompat;
 
 import org.woheller69.freeDroidWarn.FreeDroidWarn;
 
+import at.andreasrohner.spartantimelapserec.StoragePermissionHelper;
 import at.andreasrohner.spartantimelapserec.data.RecSettings;
 import at.andreasrohner.spartantimelapserec.sensor.MuteShutter;
 
@@ -86,6 +87,12 @@ public class MainActivity extends AppCompatActivity implements ForegroundService
 			}
 		}
 
+		// Android 11+: request MANAGE_EXTERNAL_STORAGE so recordings land in the
+		// user-configured directory instead of the app-private fallback.
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+			StoragePermissionHelper.requestIfNeeded(this);
+		}
+
 		//SCHEDULE_EXACT_ALARM: on Android 12 this permission should usually be automatically granted by the Android system
 		//For Android 13+ we use USE_EXACT_ALARM
 		if (android.os.Build.VERSION.SDK_INT == android.os.Build.VERSION_CODES.S) {
@@ -109,8 +116,8 @@ public class MainActivity extends AppCompatActivity implements ForegroundService
 		super.onResume();
 		ForegroundService.registerStatusListener(this);
 		if ((ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
-		&& ((ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED))
-		&& ((ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) || Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)) {
+				&& ((ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED))
+				&& ((ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) || Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)) {
 			//PERMISSION POST_NOTIFICATION is required and not tested here
 
 			// Display the fragment as the main content.
@@ -118,9 +125,9 @@ public class MainActivity extends AppCompatActivity implements ForegroundService
 				settingsFragment = new SettingsFragment();
 				settingsFragment.setRetainInstance(true);  //do not recreate if orientation is changed
 			}
-				getFragmentManager().beginTransaction()
-						.replace(R.id.fragment_container, settingsFragment)
-						.commit();
+			getFragmentManager().beginTransaction()
+					.replace(R.id.fragment_container, settingsFragment)
+					.commit();
 
 		} else 	Toast.makeText(this, getString(R.string.error_missing_permission), Toast.LENGTH_SHORT).show();
 
@@ -140,6 +147,23 @@ public class MainActivity extends AppCompatActivity implements ForegroundService
 		helper.start(true);
 
 		invalidateOptionsMenu();
+	}
+
+	@Override
+	public void onRequestPermissionsResult(int requestCode,
+										   String[] permissions, int[] grantResults) {
+		super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+		StoragePermissionHelper.onRequestPermissionsResult(requestCode, grantResults, this);
+	}
+
+	@Override
+	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+		super.onActivityResult(requestCode, resultCode, data);
+		if (StoragePermissionHelper.onActivityResult(requestCode)) {
+			Toast.makeText(this,
+					"Speicherzugriff gewährt — bevorzugter Ordner wird verwendet",
+					Toast.LENGTH_SHORT).show();
+		}
 	}
 
 	@Override

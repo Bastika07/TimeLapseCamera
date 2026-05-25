@@ -1,5 +1,8 @@
 <resources>
-
+    <string name="perm_storage_title">Speicherzugriff benötigt</string>
+    <string name="perm_storage_message">Die App benötigt Schreibzugriff, um Videos im konfigurierten Ordner zu speichern.</string>
+    <string name="perm_storage_message_r">Bitte erlaube den Zugriff auf alle Dateien in den Einstellungen, damit Videos im konfigurierten Ordner gespeichert werden können.</string>
+    <string name="perm_storage_denied_message">Ohne Speichererlaubnis werden Videos im App-internen Ordner gespeichert.</string>
     <string name="app_name">TimeLapseCam</string>
     <string name="action_start">Start</string>
     <string name="action_stop">Stop</string>
